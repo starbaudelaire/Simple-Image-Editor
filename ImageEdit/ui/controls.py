@@ -1,7 +1,6 @@
 from PyQt5 import QtWidgets, QtCore
 import functools
 
-
 class ControlPanel(QtWidgets.QWidget):
     def __init__(self, callback):
         super().__init__()
@@ -38,10 +37,10 @@ class ControlPanel(QtWidgets.QWidget):
             self.labels[name] = lbl
             row += 1
 
-        # debounce timer
+        # Timer untuk mencegah lag saat slider digeser cepat
         self.timer = QtCore.QTimer()
         self.timer.setSingleShot(True)
-        self.timer.setInterval(180)
+        self.timer.setInterval(100) # 100ms delay
         self.timer.timeout.connect(self.fire_callback)
 
     def on_change(self, name, label, value):
@@ -49,7 +48,7 @@ class ControlPanel(QtWidgets.QWidget):
         self.timer.start()
 
     def fire_callback(self):
-        params = {k.lower(): float(v.value()) for k, v in self.sliders.items()}
+        params = self.get_params()
         self.callback(params)
 
     def reset(self):
@@ -57,3 +56,36 @@ class ControlPanel(QtWidgets.QWidget):
             s.blockSignals(True)
             s.setValue(0)
             s.blockSignals(False)
+            # Update label text manual
+            # Cari nama asli dari key lowercase
+            original_name = k.capitalize()
+            if original_name in self.labels:
+                 self.labels[original_name].setText(f"{original_name}: 0")
+            elif k in self.labels:
+                 self.labels[k].setText(f"{k}: 0")
+
+    def get_params(self):
+        """Mengambil nilai slider saat ini"""
+        return {k.lower(): float(v.value()) for k, v in self.sliders.items()}
+
+    def set_params(self, params):
+        """Mengatur posisi slider dari luar (untuk Undo/Redo)"""
+        if not params: return
+        for k, v in params.items():
+            # key di params lower, tapi key di self.sliders mungkin Title Case
+            # Kita cari yang cocok
+            target_key = None
+            for sk in self.sliders.keys():
+                if sk.lower() == k.lower():
+                    target_key = sk
+                    break
+            
+            if target_key:
+                slider = self.sliders[target_key]
+                label = self.labels[target_key]
+                val = int(v)
+                
+                slider.blockSignals(True) # Jangan trigger callback
+                slider.setValue(val)
+                slider.blockSignals(False)
+                label.setText(f"{target_key}: {val}")
